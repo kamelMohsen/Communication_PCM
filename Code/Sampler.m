@@ -36,7 +36,7 @@ end
 
 peak=max(signal);
 
-%% Plotting original signal
+% Plotting original signal
 figure('Name', 'Sampler');
 plot(t,signal,'LineWidth',1, 'Color', 'k', 'DisplayName', 'Signal');
 hold on; 
@@ -46,7 +46,7 @@ t=0:1/fs:numberOfCycles*1/f;
 tSampled = t;
 sampledSignal = eval(inputFunction);
 
-%% plotig the sampled signal and adding info
+% plotig the sampled signal and adding info
 stem(tSampled,sampledSignal,'o','filled', 'LineWidth',1.5, 'Color', 'm', 'DisplayName', 'Sampled signal'); 
 caption = strcat('Sampling of: ',inputFunction);
 title(caption); 

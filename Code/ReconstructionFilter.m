@@ -1,13 +1,11 @@
-
 function ReconstructionFilter(inputSignal,decodedSignal,fs,t,sampledSignal,numberOfCycles,fm)
-
 
 decodedSignal=rot90(decodedSignal);
 
 Time = 0:1/10000*fs:numberOfCycles*1/fm;
 
 index = 1; 
-for StepTime = 0:1/10000*fs:1 % Time Domain Convolution with Sinc Filter.
+for StepTime = 0:1/10000*fs:1 
     signal(index) = 0;
     for T = 0:size(decodedSignal) - 1 
         ConvPart = decodedSignal(T+1)* sinc(fs*StepTime-(T));
@@ -15,6 +13,7 @@ for StepTime = 0:1/10000*fs:1 % Time Domain Convolution with Sinc Filter.
     end
     index=index+1;
 end
+
 figure('Name', 'Reconstructed Signal');
 plot(Time,signal,'color','r')
 hold on
@@ -24,8 +23,6 @@ legend('Reconstructed Signal','Original Signal');
 grid;
 xlabel('Time');
 ylabel('Amplitude');
-
-
 
 figure('Name', 'FT of Input, Sampled, and Reconstructed Signal');
 subplot(3,1,1);

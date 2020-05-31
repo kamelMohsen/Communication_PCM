@@ -1,67 +1,120 @@
-function [quantizedSignal,type,bits,levels,mu] = Quantizer(sampledSignal,t)
+function [newQuantizedSignal,uni,bits,levelMap, myu, maxPeakLevel]=Quantizer(arrayOfSamples,timeOfSamples)
 
 
-fprintf('<strong>Entering Quantizer inputs</strong>\n');
+%Determine if uniform or non-uniform
+uni = input('Please enter the quantization mode: 1) for uniform quantization, 2) for non uniform quantization \n');
+%Receiving max peak level and number of levels from user
+maxPeakLevel = input('Please enter the max peak level \n');
+noOfLevels = input('Please enter the number of quantization levels \n');
 
-%% Entering type--types 0)uniform, 1)non-uniform
-disp('types: 0)uniform, 1)non-uniform')
-type=input('Enter the quantization type: ');
-while type ~= 0 && type ~= 1
-	type=input('Wrong entry please Re-enter the quantization type: ')
-end
-
-%% Entering number of quantization levels
-levels=input('Enter the number of quatization levels: ');
-
-%% Entering the mu of the compander 
-mu=input('Enter the mu of compander: '); 
-
-mp=input('Enter mp value: ');
-
-%% Deciding which signal to use 0)uniform , 1)non-uniform
-if type == 0
-    signal=sampledSignal;
-else
-    %%signal=(log(1+mu*abs(sampledSignal))/log(1+mu))*mp.*sign(sampledSignal);
-	signal=mp*(log(1+mu*abs(sampledSignal)/mp)/log(1+mu)).*sign(sampledSignal);
+if (uni == 1)
+	myu=0;
+elseif (uni == 2)
+    myu = input('Please enter myu value:');
+	for i = 1:length(arrayOfSamples)
+	arrayOfSamples(i) = sign(arrayOfSamples(i)/maxPeakLevel)*log(1 + myu*abs(arrayOfSamples(i)/maxPeakLevel))/log(1+myu);
+	end
 end
 
 
-bits=log2(levels);
-delta=2*mp/levels;
-sideLevels=levels/2;
-tempSignal=zeros(1,length(signal));
 
-    for i=1:length(signal)
-        for k=0:1:(sideLevels-1)
-            if (((k*delta)<=abs(signal(i)))&&(abs(signal(i))<=((k+1)*delta)))   %
-                if(signal(i)>0)
-                    tempSignal(i)=(0.5+k)*delta;
-                elseif(signal(i)<0)
-                    tempSignal(i)=(-0.5-k)*delta;
-                else %signal equal zero
-                    tempSignal(i)=(0.5+k)*delta;
-                end
-            end
-        end
+
+%calculating number of levels based on the bits needed to get the number of
+%levels set by the user
+
+bits = 1;
+%noOfLevels is 8
+
+while(noOfLevels > 2^bits)
+    bits = bits + 1;
+end
+noOfLevels = 2^bits;
+delta = (2*maxPeakLevel)/noOfLevels;
+%Create an array of levels
+
+positiveLevels = [];
+for i = 1:noOfLevels/2
+    randomLevel = (delta/2) + (i - 1)*delta; 
+    positiveLevels = [positiveLevels randomLevel];
+end
+negativeLevels = [];
+for i = 1:noOfLevels/2 
+    randomLevel = -(delta/2) - (i - 1)*delta; 
+    negativeLevels = [negativeLevels randomLevel];
+end
+levels = [fliplr(negativeLevels) positiveLevels];
+
+%Initialize the new signal array, and calculate the quantized signal
+newQuantizedSignal = [];
+newSignalCounter = 1;
+
+for i = 1:length(arrayOfSamples) %loop over sampled signal
+
+    if (arrayOfSamples(i)>= levels(length(levels))) %if the sample is more than the max peak level, set it to the max level
+    
+    newQuantizedSignal(newSignalCounter)= levels(length(levels));
+    newSignalCounter = newSignalCounter + 1;
+    continue;
+
+    elseif(arrayOfSamples(i) <= levels(1)) %if the sample is less than the min peak level, set it to the min level
+    newQuantizedSignal(newSignalCounter)= levels(1);
+    newSignalCounter = newSignalCounter + 1;
+    continue;
     end
 
+    for j = 1:noOfLevels-1  %loop over levels
+       %if the sample is between the current two levels
+        if (arrayOfSamples(i)>levels(j) & arrayOfSamples(i) < levels(j+1)) 
+           %if the sample is closer to the higher level, set it to the
+           %higher level
+           if(abs(arrayOfSamples(i)- levels(j)) >= abs(arrayOfSamples(i) - levels(j+1)))
+               newQuantizedSignal(newSignalCounter) = levels(j+1);
+                newSignalCounter =newSignalCounter + 1;
+                break;
+           %if the sample is closer to the lower level, set it to the
+           %lower level
+           else
+                newQuantizedSignal(newSignalCounter) = levels(j);
+                newSignalCounter = newSignalCounter + 1;
+                break;
+           end
+
+       end
+    end
+end
+arrayOfLevels = 1:noOfLevels;
+
+binaryLevels = de2bi(arrayOfLevels);
+binaryLevels =fliplr(binaryLevels);
+string = mat2str(binaryLevels);
+array = {};
+counter = 2;
+
+
+
+levelMap = containers.Map(arrayOfLevels, levels);
+
+inverseLevelMap = containers.Map(levels, arrayOfLevels);
+%output is newQuantizedSignal
+%we need to convert the quantized signal into binary before passing it to
+%the encoder 3alatool
+
+convertedQuantizedSignal = [];
+for i = 1:length(newQuantizedSignal)
+
+    convertedQuantizedSignal = [convertedQuantizedSignal inverseLevelMap(newQuantizedSignal(i))];
+end
+newQuantizedSignal = convertedQuantizedSignal;
+linda = linspace(0,length(newQuantizedSignal)-1, length(newQuantizedSignal));
+
+
+
 figure('Name', 'Quantizer');
-stem(t,sampledSignal,'m');
+stem(timeOfSamples,arrayOfSamples,'m');
 hold on
-stem(t,tempSignal,'b','filled');
+stem(timeOfSamples,newQuantizedSignal,'b','filled');
 grid on
 legend('sampled signal','quantized signal')
 xlabel('t');
 ylabel('Amplitude')
 title('quantizer output');
-
-
-fixed=(tempSignal+(delta/2)+((sideLevels-1)*delta))/delta;
-fixed=round(fixed);
-quantizedSignal= de2bi(fixed,bits,2,'left-msb');
-quantizedSignal=quantizedSignal';
-quantizedSignal=quantizedSignal(1:end);  
- 
-
-end 
